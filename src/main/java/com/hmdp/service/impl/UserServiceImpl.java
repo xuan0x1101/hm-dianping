@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpSession;
 
+import static com.hmdp.utils.SystemConstants.USER_SESSION;
+
 /**
  * <p>
  * 服务实现类
@@ -78,7 +80,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             user = createUserByPhone(phone);
         }
         // save user in session
-        session.setAttribute("user", user);
+        session.setAttribute(USER_SESSION, user);
 
         return Result.ok();
     }
