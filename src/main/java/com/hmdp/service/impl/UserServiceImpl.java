@@ -4,16 +4,19 @@ import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.User;
 import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.RegexUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpSession;
 
 import static com.hmdp.utils.SystemConstants.USER_SESSION;
+import static com.hmdp.utils.SystemConstants.VALID_CODE_SESSION;
 
 /**
  * <p>
@@ -44,7 +47,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         // get code
         String code = RandomUtil.randomNumbers(6);
         // save code
-        session.setAttribute("code", code);
+        session.setAttribute(VALID_CODE_SESSION, code);
 
         // send code
         log.debug("👌 CODE SENT SUCCESS: {}", code);
@@ -67,7 +70,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
 
         // check code
-        Object cacheCode = session.getAttribute("code");
+        Object cacheCode = session.getAttribute(VALID_CODE_SESSION);
         String code = loginForm.getCode();
         if(cacheCode == null || !cacheCode.toString().equals(code)) {
             return Result.fail("Code Dispatch");
@@ -80,7 +83,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             user = createUserByPhone(phone);
         }
         // save user in session
-        session.setAttribute(USER_SESSION, user);
+        UserDTO userDTO = new UserDTO();
+        BeanUtils.copyProperties(user, userDTO);
+        session.setAttribute(USER_SESSION, userDTO);
 
         return Result.ok();
     }

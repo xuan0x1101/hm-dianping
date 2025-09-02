@@ -3,6 +3,7 @@ package com.hmdp.controller;
 
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.User;
 import com.hmdp.entity.UserInfo;
 import com.hmdp.service.IUserInfoService;
@@ -67,7 +68,7 @@ public class UserController {
 
     @GetMapping("/me")
     public Result me(){
-        User user = UserHolder.getUser();
+        UserDTO user = UserHolder.getUser();
         log.info("获取当前用户: {}", user);
         return Result.ok(user);
     }
