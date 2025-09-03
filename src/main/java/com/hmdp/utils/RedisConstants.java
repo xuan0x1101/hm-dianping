@@ -11,4 +11,7 @@ public class RedisConstants {
     public static final Integer CACHE_SHOP_TTL = 1440;
 
     public static final Integer CACHE_NULL_TTL = 2;
+
+    public static final String LOCK_SHOP = "lock:shop:";
+    public static final Integer LOCK_SHOP_TTL = 1;
 }
