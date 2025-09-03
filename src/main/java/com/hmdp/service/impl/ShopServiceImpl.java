@@ -1,5 +1,6 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.hmdp.dto.Result;
@@ -39,19 +40,29 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
      */
     @Override
     public Result queryById(Long id) {
+        Shop shop = queryWithMutex(id);
 
+        if (shop == null) {
+            return Result.fail("SHOP not exist");
+        }
+
+        return Result.ok(shop);
+    }
+
+    // 解决缓存穿透
+    private Shop queryWithPassThrough(Long id) {
         String redisKey = CACHE_SHOP_KEY + id;
         // get from redis
         String shopJson = stringRedisTemplate.opsForValue().get(redisKey);
         // if shop exist
         if (StrUtil.isNotBlank(shopJson)) {
-            return Result.ok(JSONUtil.toBean(shopJson, Shop.class));
+            return JSONUtil.toBean(shopJson, Shop.class);
         }
 
-        // shop not exist but is null in redis
+        // shop not exist in DB
         // 解决缓存穿透
         if (shopJson != null) {
-            return Result.fail("SHOP not exist!");
+            return null;
         }
 
         // get from db
@@ -59,15 +70,70 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         if (shop == null) {
             // 解决缓存穿透
             stringRedisTemplate.opsForValue().set(redisKey, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
-            return Result.fail("SHOP not exist!");
+            return null;
         }
 
         // save in redis
         stringRedisTemplate.opsForValue().set(redisKey, JSONUtil.toJsonStr(shop), CACHE_SHOP_TTL, TimeUnit.MINUTES);
 
-        return Result.ok(shop);
+        return shop;
     }
 
+    // 解决缓存击穿
+    private Shop queryWithMutex(Long id) {
+        String redisKey = CACHE_SHOP_KEY + id;
+        // get from redis
+        String shopJson = stringRedisTemplate.opsForValue().get(redisKey);
+        // if shop exist
+        if (StrUtil.isNotBlank(shopJson)) {
+            return JSONUtil.toBean(shopJson, Shop.class);
+        }
+
+        // shop not exist in DB
+        // 解决缓存穿透
+        if (shopJson != null) {
+            return null;
+        }
+
+        /*
+         redis rebuild
+        */
+        // get lock
+        String lockKey = "lock:shop:" + id;
+        Shop shop = null;
+        try {
+            boolean gotLock = tryLock(lockKey);
+            if(!gotLock) {
+                // fail, sleep retry
+                Thread.sleep(50);
+                return queryWithMutex(id);
+            }
+
+            // success, retry redis
+            shopJson = stringRedisTemplate.opsForValue().get(redisKey);
+            // if shop exist
+            if (StrUtil.isNotBlank(shopJson)) {
+                return JSONUtil.toBean(shopJson, Shop.class);
+            }
+            // not in redis, get from db
+            shop = getById(id);
+            if (shop == null) {
+                // 解决缓存穿透
+                stringRedisTemplate.opsForValue().set(redisKey, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
+                return null;
+            }
+
+            // save in redis
+            stringRedisTemplate.opsForValue().set(redisKey, JSONUtil.toJsonStr(shop), CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            // unlock
+            unLock(lockKey);
+        }
+
+        return shop;
+    }
 
     /**
      * 更新商铺信息
@@ -86,4 +152,16 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
         return Result.ok();
     }
+
+    // 获取线程锁
+    private boolean tryLock(String key) {
+        Boolean flag = stringRedisTemplate.opsForValue().setIfAbsent(key, "1", 10, TimeUnit.SECONDS);
+        return BooleanUtil.isTrue(flag);
+    }
+    // 释放线程锁
+    private void unLock(String key) {
+        Boolean flag = stringRedisTemplate.delete(key);
+    }
+
+
 }
