@@ -14,8 +14,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.hmdp.utils.RedisConstants.CACHE_SHOP_LIST;
-import static com.hmdp.utils.RedisConstants.CACHE_SHOP_LIST_TTL;
+import static com.hmdp.utils.RedisConstants.*;
 
 @Service
 public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> implements IShopTypeService {
@@ -55,7 +54,7 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
                         JSONUtil.toJsonStr(shopType)
                 );
             }
-            stringRedisTemplate.expire(redisKey, CACHE_SHOP_LIST_TTL, TimeUnit.DAYS);
+            stringRedisTemplate.expire(redisKey, CACHE_SHOP_TTL, TimeUnit.DAYS);
         }
 
         return shopTypeList;
