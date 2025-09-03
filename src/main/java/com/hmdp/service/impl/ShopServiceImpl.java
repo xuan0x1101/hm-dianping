@@ -1,5 +1,6 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
@@ -14,8 +15,7 @@ import javax.annotation.Resource;
 
 import java.util.concurrent.TimeUnit;
 
-import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
-import static com.hmdp.utils.RedisConstants.CACHE_SHOP_TTL;
+import static com.hmdp.utils.RedisConstants.*;
 
 /**
  * <p>
@@ -44,18 +44,26 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         // get from redis
         String shopJson = stringRedisTemplate.opsForValue().get(redisKey);
         // if shop exist
-        if (shopJson != null) {
+        if (StrUtil.isNotBlank(shopJson)) {
             return Result.ok(JSONUtil.toBean(shopJson, Shop.class));
+        }
+
+        // shop not exist but is null in redis
+        // 解决缓存穿透
+        if (shopJson != null) {
+            return Result.fail("SHOP not exist!");
         }
 
         // get from db
         Shop shop = getById(id);
         if (shop == null) {
+            // 解决缓存穿透
+            stringRedisTemplate.opsForValue().set(redisKey, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
             return Result.fail("SHOP not exist!");
         }
 
         // save in redis
-        stringRedisTemplate.opsForValue().set(redisKey, JSONUtil.toJsonStr(shop), CACHE_SHOP_TTL, TimeUnit.DAYS);
+        stringRedisTemplate.opsForValue().set(redisKey, JSONUtil.toJsonStr(shop), CACHE_SHOP_TTL, TimeUnit.MINUTES);
 
         return Result.ok(shop);
     }

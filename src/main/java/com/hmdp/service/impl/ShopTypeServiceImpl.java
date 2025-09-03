@@ -54,7 +54,7 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
                         JSONUtil.toJsonStr(shopType)
                 );
             }
-            stringRedisTemplate.expire(redisKey, CACHE_SHOP_TTL, TimeUnit.DAYS);
+            stringRedisTemplate.expire(redisKey, CACHE_SHOP_TTL, TimeUnit.MINUTES);
         }
 
         return shopTypeList;
