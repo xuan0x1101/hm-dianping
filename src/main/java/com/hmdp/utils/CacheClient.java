@@ -112,7 +112,7 @@ public class CacheClient {
     }
     // 释放线程锁
     private void unLock(String key) {
-        Boolean flag = stringRedisTemplate.delete(key);
+        stringRedisTemplate.delete(key);
     }
 
 

@@ -8,8 +8,10 @@ import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisIdWorker;
+import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +35,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private RedisIdWorker redisIdWorker;
 
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
 
     /**
      * 秒杀卷抢购
@@ -54,14 +59,30 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             return Result.fail("STOCK not enough");
         }
 
-        // intern 确保以id值为唯一锁
-        synchronized (UserHolder.getUser().getId().toString().intern()) {
-            /**
-             * 获取事务代理对象
-             */
+
+        // redis分布式锁
+        Long userId = UserHolder.getUser().getId();
+        SimpleRedisLock lock = new SimpleRedisLock(stringRedisTemplate, "order:" + userId);
+
+        boolean hasLock = lock.tryLock(99999);
+        if (!hasLock) {
+            return Result.fail("one order ONLY");
+        }
+        try {
             IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
             return proxy.createVoucherOrder(voucherId);
+        } finally {
+            lock.unlock();
         }
+
+//        // intern 确保以id值为唯一锁
+//        synchronized (UserHolder.getUser().getId().toString().intern()) {
+//            /**
+//             * 获取事务代理对象
+//             */
+//            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+//            return proxy.createVoucherOrder(voucherId);
+//        }
     }
 
     @Transactional
