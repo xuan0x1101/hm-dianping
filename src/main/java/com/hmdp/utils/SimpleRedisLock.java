@@ -1,5 +1,6 @@
 package com.hmdp.utils;
 
+import cn.hutool.core.lang.UUID;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import javax.annotation.Resource;
@@ -12,6 +13,7 @@ public class SimpleRedisLock implements ILock {
     private StringRedisTemplate stringRedisTemplate;
 
     private static final String LOCK_KEY_PREFIX = "lock:";
+    private static final String LOCK_ID_PREFIX = UUID.randomUUID().toString(true) + "-";
 
 
     public SimpleRedisLock(StringRedisTemplate stringRedisTemplate, String name) {
@@ -31,7 +33,8 @@ public class SimpleRedisLock implements ILock {
         // get thread
         long threadId = Thread.currentThread().getId();
         // lock in redis
-        Boolean success = stringRedisTemplate.opsForValue().setIfAbsent(LOCK_KEY_PREFIX + name, threadId + "", timeoutSec, TimeUnit.SECONDS);
+        Boolean success = stringRedisTemplate.opsForValue()
+                .setIfAbsent(LOCK_KEY_PREFIX + name, LOCK_ID_PREFIX + threadId, timeoutSec, TimeUnit.SECONDS);
         return Boolean.TRUE.equals(success);
     }
 
@@ -40,6 +43,11 @@ public class SimpleRedisLock implements ILock {
      */
     @Override
     public void unlock() {
-        stringRedisTemplate.delete(LOCK_KEY_PREFIX + name);
+        String thread = LOCK_ID_PREFIX + Thread.currentThread().getId();
+        String id = stringRedisTemplate.opsForValue().get(LOCK_KEY_PREFIX + name);
+        // 防止线程阻塞导致误删其他线程锁
+        if (thread.equals(id)) {
+            stringRedisTemplate.delete(LOCK_KEY_PREFIX + name);
+        }
     }
 }
