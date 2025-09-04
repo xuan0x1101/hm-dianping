@@ -4,7 +4,8 @@ public class RedisConstants {
     public static final String LOGIN_CODE_KEY = "user:loginCode:";
     public static final Integer LOGIN_CODE_TTL = 2;
     public static final String LOGIN_USER_TOKEN = "user:token:";
-    public static final Integer LOGIN_USER_TTL = 30;
+    // todo 修改过期时间
+    public static final Integer LOGIN_USER_TTL = 999999;
 
     public static final String CACHE_SHOP_KEY = "cache:shop:";
     public static final String CACHE_SHOP_LIST = "cache:shop:list";

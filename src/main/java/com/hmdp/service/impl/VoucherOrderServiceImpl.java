@@ -9,6 +9,7 @@ import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
+import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,14 +18,13 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- *  服务实现类
+ * 服务实现类
  * </p>
  *
  * @author 虎哥
  * @since 2021-12-22
  */
 @Service
-@Transactional
 public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, VoucherOrder> implements IVoucherOrderService {
 
     @Resource
@@ -42,7 +42,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Override
     public Result seckillVoucher(Long voucherId) {
 
-        // select Voucher
         SeckillVoucher seckillVoucher = seckillVoucherService.getById(voucherId);
 
         // time is valid
@@ -54,14 +53,36 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (seckillVoucher.getStock() < 1) {
             return Result.fail("STOCK not enough");
         }
+
+        // intern 确保以id值为唯一锁
+        synchronized (UserHolder.getUser().getId().toString().intern()) {
+            /**
+             * 获取事务代理对象
+             */
+            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+            return proxy.createVoucherOrder(voucherId);
+        }
+    }
+
+    @Transactional
+    public Result createVoucherOrder(Long voucherId) {
+        // one user one order
+        Long userId = UserHolder.getUser().getId();
+        int count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
+        if (count > 0) {
+            return Result.fail("Voucher bought already");
+        }
+
         boolean success = seckillVoucherService.update()
-                .setSql("stock = stock - 1").eq("voucher_id", voucherId).update();
+                .setSql("stock = stock - 1")
+                .eq("voucher_id", voucherId)
+                .gt("stock", 0)
+                .update();
         if (!success) {
             return Result.fail("STOCK not enough");
         }
 
         // create order
-        Long userId = UserHolder.getUser().getId();
         long orderId = redisIdWorker.nextId("seckillOrder");
         VoucherOrder voucherOrder = VoucherOrder.builder()
                 .userId(userId)
